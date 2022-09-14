@@ -74,6 +74,8 @@ Download the pretrained models from [biwi.pth](https://drive.google.com/file/d/1
 
 ### Training and Testing
 
+(WARNING: The snippet below might exhaust all memory on GPU, use 5 train_subjects for safe measure)
+
 - To train the model on VOCASET and obtain the results on the testing set, run:
 
 	```
