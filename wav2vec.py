@@ -72,6 +72,7 @@ def linear_interpolation(features, input_fps, output_fps, output_len=None):
 class Wav2Vec2Model(Wav2Vec2Model):
     def __init__(self, config):
         super().__init__(config)
+    
     def forward(
         self,
         input_values,
@@ -111,6 +112,7 @@ class Wav2Vec2Model(Wav2Vec2Model):
             ] = 1
             attention_mask = attention_mask.flip([-1]).cumsum(-1).flip([-1]).bool()
 
+        # https://huggingface.co/transformers/v4.7.0/_modules/transformers/models/wav2vec2/modeling_wav2vec2.html
         hidden_states = self.feature_projection(hidden_states)
 
         if self.config.apply_spec_augment and self.training:
