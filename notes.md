@@ -4,7 +4,8 @@
 1. Had to install `wheel`
   - Else error: invalid command `bdist_wheel`
 2. Remove `pickle` from requirements.txt
-3. `numba` and `scipy` "incompatabilities" with numpy is okay, since numpy 1.23.1 is a maintanence release
+3. `numba` and `scipy` "incompatibilities" with numpy is okay, since numpy 1.23.1 is a maintanence release
+4. Change `pyopengl` from 3.1.4 to 3.1.0 to avoid incompatibilities with `pyrender`
 
 ## ffmpeg
 `sudo snap install ffmpeg`
