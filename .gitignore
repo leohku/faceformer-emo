@@ -138,4 +138,9 @@ vocaset/vertices_npy
 vocaset/wav
 vocaset/result
 BIWI/biwi.pth
+BIWI/vertices_npy
+BIWI/wav
+BIWI/result
+BIWI/save
+BIWI/output
 demo/

@@ -25,7 +25,11 @@ def test_model(args):
 
     #build model
     model = Faceformer(args)
-    model.load_state_dict(torch.load(os.path.join(args.dataset, '{}.pth'.format(args.model_name))))
+    # Select trained model (.pth)
+    # model.load_state_dict(torch.load(os.path.join(args.dataset, '{}.pth'.format(args.model_name))))
+    # Custom trained model (.pth)
+    # model.load_state_dict(torch.load(os.path.join(args.dataset, 'save', '25_model.pth')), strict = False)
+    model.load_state_dict(torch.load(os.path.join(args.dataset, 'vocaset.pth')))
     # Added to support audio sources longer than 24s, by bumping max_seq_len to 6000
     model.PPE = PeriodicPositionalEncoding(args.feature_dim, period=args.period, max_seq_len=6000)
     model.biased_mask = init_biased_mask(n_head=4, max_seq_len=6000, period=args.period)
