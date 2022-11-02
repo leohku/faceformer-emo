@@ -11,3 +11,4 @@ trimesh==3.9.27
 pyrender==0.1.45
 pyopengl==3.1.0
 opencv-python
+datasets==1.9.0
