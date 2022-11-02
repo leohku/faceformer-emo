@@ -85,7 +85,6 @@ class Wav2VecEmoRobust():
         y = y['input_values'][0]
         # y = torch.from_numpy(y)
         y = torch.from_numpy(y).float().to(device='cuda')
-        print('y', y)
         # run through model
         with torch.no_grad():
             y = self.model(y)[0 if embeddings else 1]
