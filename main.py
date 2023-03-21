@@ -45,7 +45,9 @@ def trainer(args, train_loader, dev_loader, model, optimizer, criterion, epoch=1
         for audio, vertice, template, one_hot_all,file_name in dev_loader:
             # to gpu
             audio, vertice, template, one_hot_all= audio.to(device="cuda"), vertice.to(device="cuda"), template.to(device="cuda"), one_hot_all.to(device="cuda")
-            train_subject = "_".join(file_name[0].split("_")[:-1])
+            # Changed for MEAD + EMOCA
+            # train_subject = "_".join(file_name[0].split("_")[:-1])
+            train_subject = file_name[0].split("_")[0]
             if train_subject in train_subjects_list:
                 condition_subject = train_subject
                 iter = train_subjects_list.index(condition_subject)
@@ -84,7 +86,9 @@ def test(args, model, test_loader,epoch):
     for audio, vertice, template, one_hot_all, file_name in test_loader:
         # to gpu
         audio, vertice, template, one_hot_all= audio.to(device="cuda"), vertice.to(device="cuda"), template.to(device="cuda"), one_hot_all.to(device="cuda")
-        train_subject = "_".join(file_name[0].split("_")[:-1])
+        # Changed for MEAD + EMOCA
+        # train_subject = "_".join(file_name[0].split("_")[:-1])
+        train_subject = file_name[0].split("_")[0]
         if train_subject in train_subjects_list:
             condition_subject = train_subject
             iter = train_subjects_list.index(condition_subject)
@@ -126,6 +130,7 @@ def main():
        " FaceTalk_170908_03277_TA")
     parser.add_argument("--test_subjects", type=str, default="FaceTalk_170809_00138_TA"
        " FaceTalk_170731_00024_TA")
+    parser.add_argument("--variance_indices_path", type=str, default="variance_indices.pkl", help='path of the loss weights')
     args = parser.parse_args()
 
     #build model
@@ -139,7 +144,7 @@ def main():
     #load data
     dataset = get_dataloaders(args)
     # loss
-    criterion = nn.MSELoss()
+    criterion = model.criterion
 
     # Train the model
     optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad,model.parameters()), lr=args.lr)

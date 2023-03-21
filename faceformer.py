@@ -2,13 +2,23 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-import copy
 import math
-import librosa
 from wav2vec import Wav2Vec2Model
-from w2v import Wav2VecEmoRobust
-# from transformers import AutoProcessor, AutoModelForAudioClassification
-# from w2v import Wav2VecEmo, Wav2VecEmoRobust
+from data_loader import load_variance_indices
+
+class VarianceHeavyMSELoss(nn.Module):
+    def __init__(self, args):
+        super(VarianceHeavyMSELoss, self).__init__()
+        self.variance_indices = load_variance_indices(args)
+
+    def forward(self, pred, target):
+        normal_loss = F.mse_loss(pred, target)
+        high_loss = 0
+        for i in range(len(self.variance_indices)):
+            high_loss += F.mse_loss(pred[:,:,self.variance_indices[i]], target[:,:,self.variance_indices[i]])
+        high_loss /= len(self.variance_indices)
+        total_loss = normal_loss + high_loss
+        return total_loss
 
 # Temporal Bias, inspired by ALiBi: https://github.com/ofirpress/attention_with_linear_biases
 def init_biased_mask(n_head, max_seq_len, period):
@@ -73,19 +83,14 @@ class Faceformer(nn.Module):
         """
         self.dataset = args.dataset
         self.audio_encoder = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")
-        self.emotion_encoder = None
-        self.audio_emo_encoder = Wav2VecEmoRobust()
         # wav2vec 2.0 weights initialization
         self.audio_encoder.feature_extractor._freeze_parameters()
-        # self.audio_feature_map = nn.Linear(768, args.feature_dim)
-        self.audio_feature_map_downsize = nn.Linear(768, 63) # for lowering dimension
-        self.emotion_3_to_16 = nn.Linear(3, 1).to(device='cuda') # for w2vEmoRobust
+        self.audio_feature_map = nn.Linear(768, args.feature_dim)
         # motion encoder
         self.vertice_map = nn.Linear(args.vertice_dim, args.feature_dim)
         # periodic positional encoding 
         self.PPE = PeriodicPositionalEncoding(args.feature_dim, period = args.period)
         # temporal bias
-        # n_head = 4 => there are 4 biased_mask
         self.biased_mask = init_biased_mask(n_head = 4, max_seq_len = 600, period=args.period)
         decoder_layer = nn.TransformerDecoderLayer(d_model=args.feature_dim, nhead=4, dim_feedforward=2*args.feature_dim, batch_first=True)        
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=1)
@@ -96,26 +101,26 @@ class Faceformer(nn.Module):
         self.device = args.device
         nn.init.constant_(self.vertice_map_r.weight, 0)
         nn.init.constant_(self.vertice_map_r.bias, 0)
+        # custom loss function
+        # self.criterion = nn.MSELoss()
+        self.criterion = VarianceHeavyMSELoss(args)
+
 
     def forward(self, audio, template, vertice, one_hot, criterion,teacher_forcing=True):
         # tgt_mask: :math:`(T, T)`.
         # memory_mask: :math:`(T, S)`.
         template = template.unsqueeze(1) # (1,1, V*3)
         obj_embedding = self.obj_vector(one_hot)#(1, feature_dim)
-        frame_num = vertice.shape[1] # embeddings for mesh = 15069
-        # emo_embedding = self.audio_emo_encoder.process_func(audio, 16000) # dimension of 3
+        frame_num = vertice.shape[1]
         hidden_states = self.audio_encoder(audio, self.dataset, frame_num=frame_num).last_hidden_state
         if self.dataset == "BIWI":
             if hidden_states.shape[1]<frame_num*2:
                 vertice = vertice[:, :hidden_states.shape[1]//2]
                 frame_num = hidden_states.shape[1]//2
-        hidden_states = self.audio_feature_map_downsize(hidden_states)
-        
-        emotion_states_dim3 = self.audio_emo_encoder.process_func(audio.cpu().numpy(), 16000) # hard-coded 16000 as sampling rate
-        emo_states_dim16_ts = self.emotion_3_to_16(torch.from_numpy(emotion_states_dim3).to(device='cuda'))
-        emo_states_dim16_ts_tiled = torch.tile(emo_states_dim16_ts, (1, frame_num, 1))
-        lips_emo_hidden_states = torch.cat((hidden_states, emo_states_dim16_ts_tiled), axis=2)
-        
+        hidden_states = self.audio_feature_map(hidden_states)
+
+        # print("frame_num:",frame_num)
+
         if teacher_forcing:
             vertice_emb = obj_embedding.unsqueeze(1) # (1,1,feature_dim)
             style_emb = vertice_emb  
@@ -126,7 +131,7 @@ class Faceformer(nn.Module):
             vertice_input = self.PPE(vertice_input)
             tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
             memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
-            vertice_out = self.transformer_decoder(vertice_input, lips_emo_hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
+            vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
             vertice_out = self.vertice_map_r(vertice_out)
         else:
             for i in range(frame_num):
@@ -137,16 +142,15 @@ class Faceformer(nn.Module):
                 else:
                     vertice_input = self.PPE(vertice_emb)
                 tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
-                memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], lips_emo_hidden_states.shape[1])
-                vertice_out = self.transformer_decoder(vertice_input, lips_emo_hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
+                memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
+                vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
                 vertice_out = self.vertice_map_r(vertice_out)
                 new_output = self.vertice_map(vertice_out[:,-1,:]).unsqueeze(1)
                 new_output = new_output + style_emb
                 vertice_emb = torch.cat((vertice_emb, new_output), 1)
 
         vertice_out = vertice_out + template
-        loss = criterion(vertice_out, vertice) # (batch, seq_len, V*3)
-        loss = torch.mean(loss)
+        loss = criterion(vertice_out, vertice) # (batch, seq_len, V*3) (seq_len ranges from 17 - 143, seems like the video frame count)
         return loss
 
     def predict(self, audio, template, one_hot):
@@ -157,12 +161,7 @@ class Faceformer(nn.Module):
             frame_num = hidden_states.shape[1]//2
         elif self.dataset == "vocaset":
             frame_num = hidden_states.shape[1]
-        hidden_states = self.audio_feature_map_downsize(hidden_states)
-        
-        emotion_states_dim3 = self.audio_emo_encoder.process_func(audio.cpu().numpy(), 16000) # hard-coded 16000 as sampling rate
-        emo_states_dim16_ts = self.emotion_3_to_16(torch.from_numpy(emotion_states_dim3).to(device='cuda'))
-        emo_states_dim16_ts_tiled = torch.tile(emo_states_dim16_ts, (1, frame_num, 1))
-        lips_emo_hidden_states = torch.cat((hidden_states, emo_states_dim16_ts_tiled), axis=2)
+        hidden_states = self.audio_feature_map(hidden_states)
 
         for i in range(frame_num):
             if i==0:
@@ -173,8 +172,8 @@ class Faceformer(nn.Module):
                 vertice_input = self.PPE(vertice_emb)
 
             tgt_mask = self.biased_mask[:, :vertice_input.shape[1], :vertice_input.shape[1]].clone().detach().to(device=self.device)
-            memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], lips_emo_hidden_states.shape[1])
-            vertice_out = self.transformer_decoder(vertice_input, lips_emo_hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
+            memory_mask = enc_dec_mask(self.device, self.dataset, vertice_input.shape[1], hidden_states.shape[1])
+            vertice_out = self.transformer_decoder(vertice_input, hidden_states, tgt_mask=tgt_mask, memory_mask=memory_mask)
             vertice_out = self.vertice_map_r(vertice_out)
             new_output = self.vertice_map(vertice_out[:,-1,:]).unsqueeze(1)
             new_output = new_output + style_emb

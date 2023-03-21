@@ -29,7 +29,7 @@ def render_mesh_helper(args,mesh, t_center, rot=np.zeros(3), tex_img=None,  z_of
         camera_params = {'c': np.array([400, 400]),
                          'k': np.array([-0.19816071, 0.92822711, 0, 0, 0]),
                          'f': np.array([4754.97941935 / 8, 4754.97941935 / 8])}
-    elif args.dataset == "vocaset":
+    elif args.dataset == "vocaset" or args.dataset == 'MEAD':
         camera_params = {'c': np.array([400, 400]),
                          'k': np.array([-0.19816071, 0.92822711, 0, 0, 0]),
                          'f': np.array([4754.97941935 / 2, 4754.97941935 / 2])}
@@ -129,6 +129,7 @@ def render_sequence_meshes(args,sequence_vertices, template, out_path,predicted_
 def main():
     parser = argparse.ArgumentParser(description='FaceFormer: Speech-Driven 3D Facial Animation with Transformers')
     parser.add_argument("--dataset", type=str, default="vocaset", help='vocaset or BIWI')
+    parser.add_argument("--subject_id", type=str, default="", help='subject_id for MEAD (e.g. M005)')
     parser.add_argument("--render_template_path", type=str, default="templates", help='path of the mesh in FLAME/BIWI topology')
     parser.add_argument('--background_black', type=bool, default=True, help='whether to use black background')
     parser.add_argument('--fps', type=int,default=30, help='frame rate - 30 for vocaset; 25 for BIWI')
@@ -137,29 +138,67 @@ def main():
     parser.add_argument("--output", type=str, default="output", help='path of the rendered video sequences')
     args = parser.parse_args()
 
-    pred_path = os.path.join(args.dataset,args.pred_path)
-    output_path = os.path.join(args.dataset,args.output)
-    if os.path.exists(output_path):
-        shutil.rmtree(output_path)
-    os.makedirs(output_path)
-    
-    for file in os.listdir(pred_path):
-        if file.endswith("npy"):
-            predicted_vertices_path = os.path.join(pred_path,file)
-            if args.dataset == "BIWI":
-                template_file = os.path.join(args.dataset, args.render_template_path, "BIWI.ply")
-            elif args.dataset == "vocaset":
-                template_file = os.path.join(args.dataset, args.render_template_path, "FLAME_sample.ply")
-            print("rendering: ", file)
+    if args.dataset != 'MEAD':
+        pred_path = os.path.join(args.dataset,args.pred_path)
+        output_path = os.path.join(args.dataset,args.output)
+        if os.path.exists(output_path):
+            shutil.rmtree(output_path)
+        os.makedirs(output_path)
         
-            template = Mesh(filename=template_file)
-            vt, ft = None, None
-            tex_img = None
+        for file in os.listdir(pred_path):
+            if file.endswith("npy"):
+                predicted_vertices_path = os.path.join(pred_path,file)
+                if args.dataset == "BIWI":
+                    template_file = os.path.join(args.dataset, args.render_template_path, "BIWI.ply")
+                elif args.dataset == "vocaset":
+                    template_file = os.path.join(args.dataset, args.render_template_path, "FLAME_sample.ply")
+                print("rendering: ", file)
+            
+                template = Mesh(filename=template_file)
+                vt, ft = None, None
+                tex_img = None
 
-            predicted_vertices = np.load(predicted_vertices_path)
-            predicted_vertices = np.reshape(predicted_vertices,(-1,args.vertice_dim//3,3))
+                predicted_vertices = np.load(predicted_vertices_path)
+                predicted_vertices = np.reshape(predicted_vertices,(-1,args.vertice_dim//3,3))
 
-            render_sequence_meshes(args,predicted_vertices, template, output_path,predicted_vertices_path,vt, ft ,tex_img)
+                render_sequence_meshes(args, predicted_vertices, template, output_path,predicted_vertices_path,vt, ft ,tex_img)
+
+    elif args.dataset == 'MEAD':
+        # BASE_FACEFORMER_PATH = '/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_FACEFORMER'
+        # BASE_MEAD_PATH = '/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_TRAINED/'
+        # pred_path = os.path.join(BASE_MEAD_PATH, 'result', args.subject_id)
+        # output_path = os.path.join(BASE_MEAD_PATH, 'rendered', args.subject_id)
+        # if os.path.exists(output_path):
+        #     shutil.rmtree(output_path)
+        # os.makedirs(output_path)
+        
+        # template_file = os.path.join(BASE_FACEFORMER_PATH, 'templates', f"{args.subject_id}.obj")
+        # print(template_file)
+        # for file in os.listdir(pred_path):
+        #     if file.endswith("npy"):
+        #         predicted_vertices_path = os.path.join(pred_path,file)
+        #         print("rendering: ", predicted_vertices_path)
+        #         template = Mesh(filename=template_file)
+        #         vt, ft = None, None
+        #         tex_img = None
+
+        #         predicted_vertices = np.load(predicted_vertices_path)
+        #         predicted_vertices = np.reshape(predicted_vertices,(-1,args.vertice_dim//3,3))
+        #         render_sequence_meshes(args, predicted_vertices, template, output_path, predicted_vertices_path, vt, ft, tex_img)
+
+        # Custom Version
+        TARGET_PATH = '/home/leoho/repos/pipeline/test-data/MEAD_FACEFORMER/vertices_npy/M003_neutral_level_1_001.npy'
+        OUTPUT_PATH = '/home/leoho/repos/pipeline/test-data/MEAD_FACEFORMER/vertices_npy/'
+        TEMPLATE_FILE = '/home/leoho/repos/pipeline/test-data/MEAD_FACEFORMER/templates/M003.obj'
+        template = Mesh(filename=TEMPLATE_FILE)
+        vt, ft = None, None
+        tex_img = None
+
+        predicted_vertices = np.load(TARGET_PATH)
+        args.vertice_dim = 15354
+        predicted_vertices = np.reshape(predicted_vertices,(-1, args.vertice_dim//3, 3))
+        render_sequence_meshes(args, predicted_vertices, template, OUTPUT_PATH, TARGET_PATH, vt, ft, tex_img)
+
 
 if __name__=="__main__":
     main()
