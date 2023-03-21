@@ -15,8 +15,10 @@ class VarianceHeavyMSELoss(nn.Module):
         normal_loss = F.mse_loss(pred, target)
         high_loss = 0
         for i in range(len(self.variance_indices)):
-            high_loss += F.mse_loss(pred[:,:,self.variance_indices[i]], target[:,:,self.variance_indices[i]])
-        high_loss /= len(self.variance_indices)
+            high_loss += F.mse_loss(pred[:,:,self.variance_indices[i]*3], target[:,:,self.variance_indices[i]*3])
+            high_loss += F.mse_loss(pred[:,:,self.variance_indices[i]*3+1], target[:,:,self.variance_indices[i]*3+1])
+            high_loss += F.mse_loss(pred[:,:,self.variance_indices[i]*3+2], target[:,:,self.variance_indices[i]*3+2])
+        high_loss /= (len(self.variance_indices) * 3)
         total_loss = normal_loss + high_loss
         return total_loss
 

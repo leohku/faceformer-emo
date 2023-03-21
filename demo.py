@@ -31,7 +31,7 @@ def test_model(args):
     # Custom trained model (.pth)
     # model.load_state_dict(torch.load(os.path.join(args.dataset, 'save', '25_model.pth')), strict = False)
     # model.load_state_dict(torch.load(os.path.join(args.dataset, 'vocaset.pth')))
-    model.load_state_dict(torch.load(os.path.join('/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_TRAINED/save/100_model.pth')))
+    model.load_state_dict(torch.load(os.path.join('/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_TRAINED/save/25_model.pth')))
     # Added to support audio sources longer than 24s, by bumping max_seq_len to 6000
     model.PPE = PeriodicPositionalEncoding(args.feature_dim, period=args.period, max_seq_len=6000)
     model.biased_mask = init_biased_mask(n_head=4, max_seq_len=6000, period=args.period)
@@ -220,6 +220,7 @@ def main():
     parser.add_argument("--background_black", type=bool, default=True, help='whether to use black background')
     parser.add_argument("--template_path", type=str, default="templates.pkl", help='path of the personalized templates')
     parser.add_argument("--render_template_path", type=str, default="templates", help='path of the mesh in BIWI/FLAME topology')
+    parser.add_argument("--variance_indices_path", type=str, default="variance_indices.pkl", help='path of the loss weights')
     args = parser.parse_args()   
 
     test_model(args)
