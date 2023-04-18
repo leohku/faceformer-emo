@@ -76,7 +76,7 @@ Needs ~30GB RAM
 
 Demo command
 
-python demo.py --model_name vocaset --dataset vocaset --vertice_dim 15354 --feature_dim 64 --period 30  --fps 30  --train_subjects "M005 W011 M009 W014" --test_subjects "M011" --template_path "/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_FACEFORMER/template.pkl" --render_template_path "/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_FACEFORMER/templates" --condition M005 --subject M009 --wav_path "demo/wav/test.wav" --variance_indices_path "/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_FACEFORMER/variance_indices-600.pkl"
+python demo.py --model_name vocaset --dataset vocaset --vertice_dim 15354 --feature_dim 64 --period 30  --fps 30  --train_subjects "M005 W011 M009 W014" --test_subjects "M011" --template_path "/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_FACEFORMER/template.pkl" --render_template_path "/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_FACEFORMER/templates" --condition M005 --subject M009 --variance_indices_path "/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_FACEFORMER/variance_indices-600.pkl" --wav_path "demo/wav/test.wav"
 
 ---
 
