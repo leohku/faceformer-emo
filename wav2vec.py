@@ -99,6 +99,7 @@ class Wav2Vec2Model(Wav2Vec2Model):
             if frame_num and hidden_states.shape[1]>frame_num*2:
                 hidden_states = hidden_states[:, :frame_num*2]
         elif dataset == "vocaset":
+            # TODO: Wav2Vec paper specifies the encoder output frequency = 49Hz not 50
             hidden_states = linear_interpolation(hidden_states, 50, 30,output_len=frame_num)
      
         if attention_mask is not None:

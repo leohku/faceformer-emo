@@ -25,11 +25,13 @@ def test_model(args):
 
     #build model
     model = Faceformer(args)
+    # Changed for MEAD + EMOCA
     # Select trained model (.pth)
     # model.load_state_dict(torch.load(os.path.join(args.dataset, '{}.pth'.format(args.model_name))))
     # Custom trained model (.pth)
     # model.load_state_dict(torch.load(os.path.join(args.dataset, 'save', '25_model.pth')), strict = False)
-    model.load_state_dict(torch.load(os.path.join(args.dataset, 'vocaset.pth')))
+    # model.load_state_dict(torch.load(os.path.join(args.dataset, 'vocaset.pth')))
+    model.load_state_dict(torch.load(os.path.join('/home/leoho/data/pipeline-data/pipeline-data-lambda/MEAD_TRAINED/save/100_model.pth')))
     # Added to support audio sources longer than 24s, by bumping max_seq_len to 6000
     model.PPE = PeriodicPositionalEncoding(args.feature_dim, period=args.period, max_seq_len=6000)
     model.biased_mask = init_biased_mask(n_head=4, max_seq_len=6000, period=args.period)
@@ -78,9 +80,13 @@ def render_mesh_helper(args,mesh, t_center, rot=np.zeros(3), tex_img=None, z_off
                          'k': np.array([-0.19816071, 0.92822711, 0, 0, 0]),
                          'f': np.array([4754.97941935 / 8, 4754.97941935 / 8])}
     elif args.dataset == "vocaset":
+        # camera_params = {'c': np.array([400, 400]),
+        #                  'k': np.array([-0.19816071, 0.92822711, 0, 0, 0]),
+        #                  'f': np.array([4754.97941935 / 2, 4754.97941935 / 2])}
+        # Changed for MEAD + EMOCA
         camera_params = {'c': np.array([400, 400]),
-                         'k': np.array([-0.19816071, 0.92822711, 0, 0, 0]),
-                         'f': np.array([4754.97941935 / 2, 4754.97941935 / 2])}
+                    'k': np.array([-0.19816071, 0.92822711, 0, 0, 0]),
+                    'f': np.array([4754.97941935, 4754.97941935]) / 6}
 
     frustum = {'near': 0.01, 'far': 3.0, 'height': 800, 'width': 800}
 
@@ -157,7 +163,10 @@ def render_sequence(args):
     if args.dataset == "BIWI":
         template_file = os.path.join(args.dataset, args.render_template_path, "BIWI.ply")
     elif args.dataset == "vocaset":
-        template_file = os.path.join(args.dataset, args.render_template_path, "FLAME_sample.ply")
+        # Changed for MEAD + EMOCA
+        # template_file = os.path.join(args.dataset, args.render_template_path, "FLAME_sample.ply")
+        template_file = os.path.join(args.render_template_path, args.subject+".obj")
+
          
     print("rendering: ", test_name)
                  
@@ -182,11 +191,19 @@ def render_sequence(args):
         writer.write(pred_img)
 
     writer.release()
-    file_name = test_name+"_"+args.subject+"_condition_"+args.condition
+    # For web app, file name should be file name of audio file
+    file_name = args.wav_path.split("/")[-1].split(".")[0]
+    # file_name = test_name+"_"+args.subject+"_condition_"+args.condition
 
+    tmp_video_file_2 = tempfile.NamedTemporaryFile('w', suffix='.mp4', dir=output_path)
+    cmd = ('ffmpeg' + ' -i {0} -pix_fmt yuv420p -qscale 0 -y {1}'.format(
+       tmp_video_file.name, tmp_video_file_2.name)).split()
+    call(cmd)
+
+    # Add audio
     video_fname = os.path.join(output_path, file_name+'.mp4')
-    cmd = ('ffmpeg' + ' -i {0} -pix_fmt yuv420p -qscale 0 {1}'.format(
-       tmp_video_file.name, video_fname)).split()
+    cmd = ('ffmpeg' + ' -i {0} -i {1} -c:v copy -c:a aac -strict experimental -y {2}'.format(
+         tmp_video_file_2.name, wav_path, video_fname)).split()
     call(cmd)
 
 def main():
@@ -208,9 +225,13 @@ def main():
     parser.add_argument("--background_black", type=bool, default=True, help='whether to use black background')
     parser.add_argument("--template_path", type=str, default="templates.pkl", help='path of the personalized templates')
     parser.add_argument("--render_template_path", type=str, default="templates", help='path of the mesh in BIWI/FLAME topology')
+    parser.add_argument("--variance_indices_path", type=str, default="variance_indices.pkl", help='path of the loss weights')
     args = parser.parse_args()   
 
     test_model(args)
+    # raw = np.load("/home/leoho/repos/FaceFormer/demo/result/test.npy").astype(np.float)
+    # print(raw)
+    # np.save("/home/leoho/repos/FaceFormer/demo/result/test2.npy",raw)
     render_sequence(args)
 
 if __name__=="__main__":

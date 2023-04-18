@@ -2,9 +2,21 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-import copy
 import math
 from wav2vec import Wav2Vec2Model
+from data_loader import load_variance_indices_numpy
+
+class VarianceHeavyMSELoss(nn.Module):
+    def __init__(self, args):
+        super(VarianceHeavyMSELoss, self).__init__()
+        self.variance_indices = load_variance_indices_numpy(args)
+        self.effective_variance_indices = np.repeat(self.variance_indices*3, 3) + np.tile(np.arange(3), len(self.variance_indices)) # [2, 6, 13] -> [ 6  7  8 18 19 20 39 40 41]
+
+    def forward(self, pred, target):
+        normal_loss = F.mse_loss(pred, target)
+        high_loss = F.mse_loss(pred[:, :, self.effective_variance_indices], target[:, :, self.effective_variance_indices])
+        total_loss = normal_loss + 0.01 * high_loss
+        return total_loss
 
 # Temporal Bias, inspired by ALiBi: https://github.com/ofirpress/attention_with_linear_biases
 def init_biased_mask(n_head, max_seq_len, period):
@@ -69,7 +81,6 @@ class Faceformer(nn.Module):
         """
         self.dataset = args.dataset
         self.audio_encoder = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")
-        self.emotion_encoder = None
         # wav2vec 2.0 weights initialization
         self.audio_encoder.feature_extractor._freeze_parameters()
         self.audio_feature_map = nn.Linear(768, args.feature_dim)
@@ -78,7 +89,6 @@ class Faceformer(nn.Module):
         # periodic positional encoding 
         self.PPE = PeriodicPositionalEncoding(args.feature_dim, period = args.period)
         # temporal bias
-        # n_head = 4 => there are 4 biased_mask
         self.biased_mask = init_biased_mask(n_head = 4, max_seq_len = 600, period=args.period)
         decoder_layer = nn.TransformerDecoderLayer(d_model=args.feature_dim, nhead=4, dim_feedforward=2*args.feature_dim, batch_first=True)        
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=1)
@@ -89,6 +99,10 @@ class Faceformer(nn.Module):
         self.device = args.device
         nn.init.constant_(self.vertice_map_r.weight, 0)
         nn.init.constant_(self.vertice_map_r.bias, 0)
+        # custom loss function
+        # self.criterion = nn.MSELoss()
+        self.criterion = VarianceHeavyMSELoss(args)
+
 
     def forward(self, audio, template, vertice, one_hot, criterion,teacher_forcing=True):
         # tgt_mask: :math:`(T, T)`.
@@ -102,6 +116,8 @@ class Faceformer(nn.Module):
                 vertice = vertice[:, :hidden_states.shape[1]//2]
                 frame_num = hidden_states.shape[1]//2
         hidden_states = self.audio_feature_map(hidden_states)
+
+        # print("frame_num:",frame_num)
 
         if teacher_forcing:
             vertice_emb = obj_embedding.unsqueeze(1) # (1,1,feature_dim)
@@ -132,8 +148,7 @@ class Faceformer(nn.Module):
                 vertice_emb = torch.cat((vertice_emb, new_output), 1)
 
         vertice_out = vertice_out + template
-        loss = criterion(vertice_out, vertice) # (batch, seq_len, V*3)
-        loss = torch.mean(loss)
+        loss = criterion(vertice_out, vertice) # (batch, seq_len, V*3) (seq_len ranges from 17 - 143, seems like the video frame count)
         return loss
 
     def predict(self, audio, template, one_hot):
