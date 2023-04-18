@@ -8,7 +8,7 @@ import pickle
 from tqdm import tqdm
 import random,math
 from transformers import Wav2Vec2FeatureExtractor,Wav2Vec2Processor
-import librosa    
+import librosa
 
 class Dataset(data.Dataset):
     """Custom data.Dataset compatible with data.DataLoader."""
@@ -64,7 +64,7 @@ def read_data(args):
         for f in tqdm(fs):
             # DEBUG SPEED UP
             # if count > 5:
-            #     continue
+                # continue
             if f.endswith("wav"):
                 # DEBUG SPEED UP
                 # count = count + 1
@@ -133,7 +133,7 @@ def get_dataloaders(args):
     dataset["test"] = data.DataLoader(dataset=test_data, batch_size=1, shuffle=False)
     return dataset
 
-def load_variance_indices(args):
+def load_variance_indices_numpy(args):
     path = os.path.join(args.dataset, args.variance_indices_path)
     print("variance_indices_path:", path)
     with open(path, "rb") as f:
@@ -146,6 +146,7 @@ def load_variance_indices(args):
             else:
                 intersection = list(set(intersection) & set(value))
         print("vertices in loss weight intersection:", len(intersection))
+        intersection = np.array(intersection)
         return intersection
 
 if __name__ == "__main__":

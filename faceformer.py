@@ -4,22 +4,18 @@ import torch.nn.functional as F
 import numpy as np
 import math
 from wav2vec import Wav2Vec2Model
-from data_loader import load_variance_indices
+from data_loader import load_variance_indices_numpy
 
 class VarianceHeavyMSELoss(nn.Module):
     def __init__(self, args):
         super(VarianceHeavyMSELoss, self).__init__()
-        self.variance_indices = load_variance_indices(args)
+        self.variance_indices = load_variance_indices_numpy(args)
+        self.effective_variance_indices = np.repeat(self.variance_indices*3, 3) + np.tile(np.arange(3), len(self.variance_indices)) # [2, 6, 13] -> [ 6  7  8 18 19 20 39 40 41]
 
     def forward(self, pred, target):
         normal_loss = F.mse_loss(pred, target)
-        high_loss = 0
-        for i in range(len(self.variance_indices)):
-            high_loss += F.mse_loss(pred[:,:,self.variance_indices[i]*3], target[:,:,self.variance_indices[i]*3])
-            high_loss += F.mse_loss(pred[:,:,self.variance_indices[i]*3+1], target[:,:,self.variance_indices[i]*3+1])
-            high_loss += F.mse_loss(pred[:,:,self.variance_indices[i]*3+2], target[:,:,self.variance_indices[i]*3+2])
-        high_loss /= (len(self.variance_indices) * 3)
-        total_loss = normal_loss + high_loss
+        high_loss = F.mse_loss(pred[:, :, self.effective_variance_indices], target[:, :, self.effective_variance_indices])
+        total_loss = normal_loss + 0.01 * high_loss
         return total_loss
 
 # Temporal Bias, inspired by ALiBi: https://github.com/ofirpress/attention_with_linear_biases
