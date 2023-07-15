@@ -9,7 +9,7 @@
 ## Poster
 
 <p align="center">
-<img src="https://wp.cs.hku.hk/2022/fyp22010/wp-content/uploads/sites/12/2023/04/FaceFormer-Emo-Poster.png" width="70%" />
+<img src="https://raw.githubusercontent.com/leohku/faceformer-emo/main/poster.jpeg" width="70%" />
 </p>
 
 ## 3-min Video Introduction
